@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>تایید هویت انسانی | کپچای هوشمند دو مرحله‌ای</title>
+    
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://v1.fontapi.ir">
+
+    <link rel="stylesheet" href="https://v1.fontapi.ir/css/Vazir">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Vazir', sans-serif; user-select: none; }
+
+        body {
+            background-color: #f5f5f7;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* صفحه نمایش کشور و پرچم / مسدودسازی */
+        #ip-blocker {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #111;
+            color: #fff;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+        .flag-img {
+            width: 120px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(255,255,255,0.2);
+            margin-bottom: 15px;
+        }
+        .country-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #f1f5f9;
+        }
+        
+        /* دکمه مینیمال تنظیمات */
+        .admin-gear {
+            position: fixed;
+            top: 24px;
+            left: 24px;
+            font-size: 1.2rem;
+            color: #94a3b8;
+            cursor: pointer;
+            z-index: 100;
+            transition: color 0.2s, transform 0.3s ease;
+            display: none; 
+        }
+        .admin-gear:hover {
+            color: #1e293b;
+            transform: rotate(90deg);
+        }
+
+        /* مودال (پنجره) ورود و ثبت‌نام */
+        .admin-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background: #fff;
+            width: 100%;
+            max-width: 320px;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h3 { font-size: 1rem; color: #111; }
+        .close-modal { cursor: pointer; color: #64748b; }
+        .auth-input {
+            width: 100%; padding: 10px; border: 1px solid #e2e8f0;
+            border-radius: 8px; margin-bottom: 12px; font-size: 0.9rem;
+        }
+        .auth-input:focus { outline: none; border-color: #2563eb; }
+        .tab-buttons { display: flex; gap: 8px; margin-bottom: 16px; }
+        .tab-btn {
+            flex: 1; padding: 8px; border: none; background: #f1f5f9;
+            color: #64748b; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+        }
+        .tab-btn.active { background: #111; color: #fff; }
+        .submit-btn {
+            width: 100%; background: #2563eb; color: #fff; border: none;
+            padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+        }
+
+        /* استایل‌های ویجت اصلی */
+        .widget-card {
+            background: #ffffff;
+            width: 100%;
+            max-width: 380px;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e1e4e8;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            position: relative;
+            overflow: hidden;
+            opacity: 0; 
+            transition: opacity 0.5s ease;
+        }
+
+        #intro-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #ffffff;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            transition: opacity 0.3s ease;
+        }
+
+        #intro-screen h3 { font-size: 1.1rem; color: #111; margin-bottom: 8px; }
+        #intro-screen p { font-size: 0.85rem; color: #666; margin-bottom: 12px; line-height: 1.5; }
+        
+        .security-code-box {
+            background: #f1f5f9; border: 1px dashed #94a3b8; padding: 8px 24px;
+            font-size: 1.5rem; letter-spacing: 6px; font-family: monospace;
+            font-weight: bold; color: #1e293b; border-radius: 8px; margin-bottom: 12px;
+            user-select: text; 
+        }
+        
+        .code-input {
+            width: 100%; padding: 10px; border: 1px solid #cbd5e1;
+            border-radius: 8px; font-size: 1rem; text-align: center;
+            letter-spacing: 4px; margin-bottom: 8px; transition: border-color 0.2s;
+        }
+        .code-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .error-msg { color: #dc2626; font-size: 0.75rem; margin-bottom: 12px; display: none; font-weight: 500; }
+        .btn-start { background: #111; color: #fff; border: none; padding: 10px 24px; font-size: 0.9rem; font-weight: 500; border-radius: 8px; cursor: pointer; width: 100%; }
+
+        .header { text-align: center; }
+        .header h3 { font-size: 1rem; color: #333; font-weight: 600; }
+        .target-shape { color: #2563eb; font-size: 1.1rem; font-weight: bold; margin: 6px 0; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .timer-badge { background: #fee2e2; color: #dc2626; font-size: 0.85rem; padding: 2px 8px; border-radius: 12px; font-weight: bold; }
+        .help-text { font-size: 0.75rem; color: #777; }
+
+        .board { position: relative; width: 100%; height: 220px; background: #1a1b1e; border-radius: 12px; overflow: hidden; }
+        video { display: none; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: scaleX(-1); }
+
+        .actions { display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 10px; font-size: 0.85rem; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-verify { background: linear-gradient(135deg, #2563eb, #4f46e5); color: white; }
+        .btn-clear { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+
+        #result-box { padding: 12px; border-radius: 8px; text-align: center; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 4px; min-height: 50px; justify-content: center; }
+        .status-msg { font-size: 0.85rem; font-weight: 500; color: #334155; }
+        .sub-msg { font-size: 0.75rem; color: #64748b; }
+        
+        .text-success { color: #059669; }
+        .text-error { color: #dc2626; }
+        .text-bot { color: #7c3aed; }
+        .text-hard { color: #ea580c; font-size: 0.7rem; font-weight: bold; background: #ffedd5; padding: 2px 6px; border-radius: 4px;}
+    </style>
+</head>
+<body>
+
+    <div id="ip-blocker">
+        <i class="fa-solid fa-earth-americas" style="font-size: 3rem; margin-bottom: 16px; color: #475569;"></i>
+        <h2>در حال بررسی موقعیت مکانی...</h2>
+        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 8px;">لطفا چند لحظه صبر کنید</p>
+    </div>
+
+    <i class="fa-solid fa-gear admin-gear" id="adminGear" onclick="openAdminModal()"></i>
+
+    <div class="admin-modal" id="adminModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>مدیریت سیستم</h3>
+                <i class="fa-solid fa-xmark close-modal" onclick="closeAdminModal()"></i>
+            </div>
+            
+            <div class="tab-buttons" id="authTabs">
+                <button class="tab-btn active" id="loginTabBtn" onclick="switchTab('login')">ورود</button>
+                <button class="tab-btn" id="registerTabBtn" onclick="switchTab('register')">ساخت اکانت</button>
+            </div>
+
+            <div id="loginForm">
+                <input type="text" class="auth-input" placeholder="نام کاربری">
+                <input type="password" class="auth-input" placeholder="رمز عبور">
+                <button class="submit-btn" onclick="handleLogin()">ورود به پنل</button>
+            </div>
+
+            <div id="registerForm" style="display: none;">
+                <input type="text" class="auth-input" placeholder="نام کاربری جدید">
+                <input type="password" class="auth-input" placeholder="رمز عبور">
+                <button class="submit-btn" onclick="handleRegister()">ثبت مدیر جدید</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="widget-card" id="mainWidget">
+        <div id="intro-screen">
+            <i class="fa-solid fa-shield-halved" style="font-size: 2rem; color: #2563eb; margin-bottom: 12px;"></i>
+            <h3>مرحله اول: کد امنیتی</h3>
+            <p>برای شروع چالش، کد زیر را وارد کنید.</p>
+            
+            <div class="security-code-box" id="securityCodeDisplay">------</div>
+            
+            <input type="text" id="securityCodeInput" class="code-input" inputmode="numeric" placeholder="کد ۶ رقمی" maxlength="6" autocomplete="off">
+            <div id="codeErrorMsg" class="error-msg">کد وارد شده اشتباه است.</div>
+
+            <button class="btn-start" onclick="verifyFirstStage()">ورود به چالش رسم</button>
+        </div>
+
+        <div class="header">
+            <h3>مرحله دوم: رسم الگو</h3>
+            <div class="target-shape" id="shapeDisplay">
+                <span id="shapeName">شکل: ؟</span>
+                <span class="timer-badge" id="timerDisplay">۸ ثانیه</span>
+            </div>
+            <p class="help-text">انگشت اشاره و شست را به هم بچسبانید و رسم کنید.</p>
+        </div>
+
+        <div class="board">
+            <video id="webcam" autoplay playsinline muted></video>
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-verify" onclick="verifyShape()"><i class="fa-solid fa-fingerprint"></i> بررسی نهایی</button>
+            <button class="btn btn-clear" onclick="clearBoard()"><i class="fa-solid fa-arrow-rotate-right"></i> از نو</button>
+        </div>
+
+        <div id="result-box">
+            <span id="statusIcon" class="status-msg">آماده رسم...</span>
+            <span id="subDisplay" class="sub-msg"></span>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // بخش اول: منطق تشخیص آی‌پی، نمایش پرچم و مسدودسازی
+        // ==========================================
+        
+        async function checkUserIP() {
+            try {
+                // دریافت اطلاعات آی‌پی از API
+                const response = await fetch('http://ip-api.com/json/');
+                const data = await response.json();
+                
+                if (data && data.status === 'success') {
+                    
+                    // بررسی اینکه آیا کشور ایران است یا خیر
+                    if (data.countryCode === 'IR') {
+                        // نمایش پرچم و اسم ایران در صفحه قفل
+                        document.getElementById('ip-blocker').innerHTML = `
+                            <img class="flag-img" src="https://flagcdn.com/w320/ir.png" alt="Iran">
+                            <div class="country-name">ایران</div>
+                            <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 10px;">آی‌پی شما: ${data.query}</p>
+                        `;
+                        
+                        // ورود به کپچا بعد از 3 ثانیه
+                        setTimeout(() => {
+                            document.getElementById('ip-blocker').style.display = 'none';
+                            document.getElementById('mainWidget').style.opacity = '1';
+                            document.getElementById('adminGear').style.display = 'block';
+                            generateSecurityCode(); 
+                        }, 3000);
+                        
+                    } else {
+                        // مسدودسازی دسترسی کاربران خارج از ایران
+                        document.getElementById('ip-blocker').innerHTML = `
+                            <i class="fa-solid fa-ban" style="font-size: 3rem; margin-bottom: 16px; color: #dc2626;"></i>
+                            <h2>دسترسی مسدود شد</h2>
+                            <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 8px;">این سرویس تنها برای کاربران داخل ایران در دسترس است.</p>
+                        `;
+                    }
+                    
+                } else {
+                    throw new Error('عدم موفقیت در دریافت اطلاعات');
+                }
+            } catch (error) {
+                document.getElementById('ip-blocker').innerHTML = `
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 3rem; margin-bottom: 16px; color: #eab308;"></i>
+                    <h2>خطا در برقراری ارتباط</h2>
+                    <p style="color: #94a3b8; font-size: 0.9rem; margin-top: 8px;">امکان تشخیص موقعیت مکانی شما وجود ندارد.</p>
+                `;
+            }
+        }
+
+        // بررسی وضعیت ثبت‌نام یک‌بار مصرف
+        function checkAdminRegistrationState() {
+            const isRegistered = localStorage.getItem('globalAdminRegistered');
+            if (isRegistered === 'true') {
+                document.getElementById('registerTabBtn').style.display = 'none';
+                switchTab('login');
+            }
+        }
+
+        function openAdminModal() {
+            document.getElementById('adminModal').style.display = 'flex';
+            checkAdminRegistrationState();
+        }
+
+        function closeAdminModal() {
+            document.getElementById('adminModal').style.display = 'none';
+        }
+
+        function switchTab(tab) {
+            if (tab === 'login') {
+                document.getElementById('loginForm').style.display = 'block';
+                document.getElementById('registerForm').style.display = 'none';
+                document.getElementById('loginTabBtn').classList.add('active');
+                document.getElementById('registerTabBtn').classList.remove('active');
+            } else {
+                document.getElementById('loginForm').style.display = 'none';
+                document.getElementById('registerForm').style.display = 'block';
+                document.getElementById('loginTabBtn').classList.remove('active');
+                document.getElementById('registerTabBtn').classList.add('active');
+            }
+        }
+
+        function handleRegister() {
+            localStorage.setItem('globalAdminRegistered', 'true');
+            alert('حساب کاربری مدیریت ساخته شد. تب ثبت‌نام برای همیشه حذف می‌شود.');
+            closeAdminModal();
+        }
+
+        function handleLogin() {
+            alert('درخواست ورود به سرور ارسال شد...');
+        }
+
+        // اجرای بررسی آی‌پی در لحظه لود صفحه
+        window.addEventListener('DOMContentLoaded', checkUserIP);
+
+        // ==========================================
+        // بخش دوم: منطق کپچای تصویری
+        // ==========================================
+
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const shapeNameDisplay = document.getElementById('shapeName');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const resultBox = document.getElementById('result-box');
+        const statusIcon = document.getElementById('statusIcon');
+        const subDisplay = document.getElementById('subDisplay');
+        
+        let motionHistory = [];
+        let isDrawingMode = true;
+        let currentTargetShape = null;
+        let timerInterval = null;
+        let timeLeft = 8;
+        let firstPointDrawTime = 0;
+        let hands; 
+        let currentSecurityCode = "";
+
+        const shapes = [
+            { id: 'circle', name: 'دایره', hard: false },
+            { id: 'square', name: 'مربع', hard: false },
+            { id: 'triangle', name: 'مثلث', hard: false },
+            { id: 'star', name: 'ستاره', hard: true },
+            { id: 'zigzag', name: 'زیگزاگ (W یا M)', hard: true },
+            { id: 'spiral', name: 'مارپیچ (حلزونی)', hard: true }
+        ];
+
+        function generateSecurityCode() {
+            currentSecurityCode = Math.floor(100000 + Math.random() * 900000).toString();
+            document.getElementById('securityCodeDisplay').innerText = currentSecurityCode;
+            document.getElementById('securityCodeInput').value = "";
+        }
+        
+        function verifyFirstStage() {
+            const userInput = document.getElementById('securityCodeInput').value.trim();
+            const errorMsg = document.getElementById('codeErrorMsg');
+
+            if (userInput === currentSecurityCode) {
+                errorMsg.style.display = "none";
+                startChallenge();
+            } else {
+                errorMsg.style.display = "block";
+                generateSecurityCode();
+                document.getElementById('securityCodeInput').focus();
+            }
+        }
+
+        function resizeCanvas() {
+            canvasElement.width = canvasElement.parentElement.clientWidth;
+            canvasElement.height = canvasElement.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function startChallenge() {
+            if(typeof Hands === 'undefined') {
+                alert("در حال آماده‌سازی هسته امنیتی. لطفاً چند ثانیه دیگر تلاش کنید.");
+                return;
+            }
+
+            document.getElementById('intro-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('intro-screen').style.display = 'none';
+                const randomIdx = Math.floor(Math.random() * shapes.length);
+                currentTargetShape = shapes[randomIdx];
+                
+                let hardTag = currentTargetShape.hard ? " <span class='text-hard'>چالش سخت</span>" : "";
+                shapeNameDisplay.innerHTML = `رسم کنید: ${currentTargetShape.name}${hardTag}`;
+                
+                initCamera();
+                startVisualTimer(); 
+            }, 300);
+        }
+
+        function startVisualTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 8;
+            timerDisplay.innerText = `${timeLeft} ثانیه`;
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    timerDisplay.innerText = `${timeLeft} ثانیه`;
+                } else {
+                    timerDisplay.innerText = `۰ ثانیه`;
+                    clearInterval(timerInterval);
+                    autoFailByTimeout();
+                }
+            }, 1000);
+        }
+
+        function autoFailByTimeout() {
+            isDrawingMode = false;
+            statusIcon.innerHTML = "<i class='fa-solid fa-clock'></i> زمان تمام شد";
+            statusIcon.className = "status-msg text-error";
+            subDisplay.innerText = "فرصت شما به پایان رسید. از نو امتحان کنید.";
+            resultBox.style.borderColor = "#fee2e2";
+            resultBox.style.background = "#fef2f2";
+        }
+
+        function initCamera() {
+            if(!hands) {
+                hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+                hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+                hands.onResults(onResults);
+            }
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({ image: videoElement }); },
+                width: 320, height: 240
+            });
+            camera.start();
+        }
+
+        function onResults(results) {
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const thumb = landmarks[4], index = landmarks[8];
+                const distance = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+                const isPinching = distance < 0.05;
+
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: 'rgba(255,255,255,0.15)', lineWidth: 1 });
+                drawLandmarks(canvasCtx, landmarks, { color: isPinching ? '#3b82f6' : 'rgba(255,255,255,0.4)', lineWidth: 1, radius: 2 });
+                
+                if(isDrawingMode && isPinching) {
+                    if (motionHistory.length === 0) firstPointDrawTime = Date.now();
+                    motionHistory.push({ x: index.x * canvasElement.width, y: index.y * canvasElement.height, z: index.z });
+                }
+            }
+            drawPath();
+        }
+
+        function drawPath() {
+            if (motionHistory.length < 2) return;
+            canvasCtx.beginPath();
+            canvasCtx.strokeStyle = '#3b82f6';
+            canvasCtx.lineWidth = 3;
+            canvasCtx.lineCap = 'round';
+            canvasCtx.lineJoin = 'round';
+            canvasCtx.moveTo(motionHistory[0].x, motionHistory[0].y);
+            for (let i = 1; i < motionHistory.length; i++) {
+                canvasCtx.lineTo(motionHistory[i].x, motionHistory[i].y);
+            }
+            canvasCtx.stroke();
+        }
+
+        function analyzeShapeMatch(points, targetId, drawingDuration) {
+            if (drawingDuration > 0 && drawingDuration < 200) return { score: 99, msg: "سرعت رسم غیرطبیعی (تزریق رباتیک)." };
+            if (points.length < 20) return { score: 0, msg: "خط رسم شده خیلی کوتاه است." };
+
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            points.forEach(p => {
+                if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+            });
+
+            const width = maxX - minX, height = maxY - minY, maxDim = Math.max(width, height);
+            if (width < 40 || height < 40) return { score: 0, msg: "شکل خیلی کوچک است." };
+
+            const startP = points[0], endP = points[points.length - 1];
+            const gap = Math.hypot(endP.x - startP.x, endP.y - startP.y);
+            const needsClosure = ['circle', 'square', 'triangle', 'star'].includes(targetId);
+            
+            if (needsClosure && gap > maxDim * 0.3) return { score: 0, msg: "این شکل باید کامل بسته شود." };
+
+            let zAvg = points.reduce((sum, p) => sum + p.z, 0) / points.length;
+            let zVariance = points.reduce((sum, p) => sum + Math.pow(p.z - zAvg, 2), 0) / points.length;
+            if (zVariance < 0.000001) return { score: 99, msg: "جعل ۲ بعدی یا حرکت مصنوعی تشخیص داده شد." };
+
+            let corners = 0;
+            const step = Math.max(3, Math.floor(points.length / 12));
+            for(let i = step; i < points.length - step; i++) {
+                let p1 = points[i-step], p2 = points[i], p3 = points[i+step];
+                let a = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                let b = Math.hypot(p2.x - p3.x, p2.y - p3.y);
+                let c = Math.hypot(p1.x - p3.x, p1.y - p3.y);
+                
+                if (a > 0 && b > 0) {
+                    let cosVal = Math.max(-1, Math.min(1, (a*a + b*b - c*c) / (2*a*b)));
+                    if ((Math.acos(cosVal) * (180 / Math.PI)) < 130) { corners++; i += step; }
+                }
+            }
+
+            let totalAngleChange = 0, angleStep = Math.max(2, Math.floor(points.length / 15));
+            for(let i = angleStep * 2; i < points.length; i += angleStep) {
+                let p1 = points[i - 2*angleStep], p2 = points[i - angleStep], p3 = points[i];
+                let diff = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                while (diff > Math.PI) diff -= 2 * Math.PI;
+                while (diff < -Math.PI) diff += 2 * Math.PI;
+                totalAngleChange += Math.abs(diff);
+            }
+            let totalAngleDeg = totalAngleChange * (180 / Math.PI);
+
+            let cx = 0, cy = 0;
+            points.forEach(p => { cx += p.x; cy += p.y; });
+            cx /= points.length;
+            let radii = points.map(p => Math.hypot(p.x - cx, p.y - cy));
+            let avgRadius = radii.reduce((sum, r) => sum + r, 0) / radii.length;
+            let cv = Math.sqrt(radii.reduce((sum, r) => sum + Math.pow(r - avgRadius, 2), 0) / radii.length) / avgRadius;
+
+            let finalScore = 0;
+            if (targetId === 'circle') {
+                if (cv < 0.2) finalScore = 85 + (0.2 - cv) * 50;
+                else if (cv < 0.3) finalScore = 75;
+            } 
+            else if (targetId === 'square') {
+                if (corners === 4 && cv > 0.15) finalScore = 85;
+                else if (corners >= 3 && corners <= 5) finalScore = 72;
+            } 
+            else if (targetId === 'triangle') {
+                if (corners === 3 && cv > 0.15) finalScore = 86;
+                else if (corners >= 2 && corners <= 4) finalScore = 74;
+            }
+            else if (targetId === 'star') {
+                if (corners >= 4) finalScore = 87;
+                else finalScore = 65;
+            }
+            else if (targetId === 'zigzag') {
+                if (!needsClosure && corners >= 3) finalScore = 84;
+                else finalScore = 60;
+            }
+            else if (targetId === 'spiral') {
+                if (!needsClosure && totalAngleDeg > 400 && corners <= 2) finalScore = 90;
+                else finalScore = 60;
+            }
+
+            finalScore = Math.min(Math.round(finalScore), 95); 
+            if (finalScore < 70) return { score: finalScore, msg: "شکل رسم شده با درخواست مطابقت ندارد." };
+            return { score: finalScore, msg: `الگوی انسانی تایید شد (دقت: ٪${finalScore})` };
+        }
+
+        function verifyShape() {
+            if (!isDrawingMode && timeLeft <= 0) return; 
+
+            if(motionHistory.length === 0) {
+                statusIcon.innerHTML = "<i class='fa-solid fa-pen'></i> لطفاً ابتدا شکل را رسم کنید.";
+                statusIcon.className = "status-msg text-error";
+                subDisplay.innerText = "زمان همچنان در حال محاسبه است...";
+                return; 
+            }
+
+            clearInterval(timerInterval);
+            isDrawingMode = false;
+
+            statusIcon.innerHTML = "<i class='fa-solid fa-fingerprint fa-beat'></i> در حال تحلیل رفتار و بررسی...";
+            statusIcon.className = "status-msg";
+            subDisplay.innerText = "";
+
+            const actualDuration = firstPointDrawTime > 0 ? Date.now() - firstPointDrawTime : 0;
+
+            setTimeout(() => {
+                const result = analyzeShapeMatch(motionHistory, currentTargetShape.id, actualDuration);
+                const score = result.score;
+                
+                if (score > 96) {
+                    statusIcon.innerHTML = "<i class='fa-solid fa-robot'></i> رفتار رباتیک تشخیص داده شد";
+                    statusIcon.className = "status-msg text-bot";
+                    subDisplay.innerText = result.msg;
+                    resultBox.style.borderColor = "#ddd6fe";
+                    resultBox.style.background = "#f5f3ff";
+                } 
+                else if (score >= 70 && score <= 96) {
+                    statusIcon.innerHTML = "<i class='fa-solid fa-circle-check'></i> تایید هویت انسانی";
+                    statusIcon.className = "status-msg text-success";
+                    subDisplay.innerText = result.msg;
+                    resultBox.style.borderColor = "#d1fae5";
+                    resultBox.style.background = "#ecfdf5";
+                } 
+                else {
+                    statusIcon.innerHTML = "<i class='fa-solid fa-circle-xmark'></i> الگو نامعتبر است";
+                    statusIcon.className = "status-msg text-error";
+                    subDisplay.innerText = result.msg;
+                    resultBox.style.borderColor = "#fee2e2";
+                    resultBox.style.background = "#fef2f2";
+                }
+            }, 800);
+        }
+
+        function clearBoard() {
+            motionHistory = []; isDrawingMode = true; firstPointDrawTime = 0;
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            statusIcon.innerHTML = "آماده رسم..."; statusIcon.className = "status-msg";
+            subDisplay.innerText = "";
+            resultBox.style.borderColor = "#e2e8f0"; resultBox.style.background = "#f8fafc";
+            startVisualTimer(); 
+        }
+    </script>
+</body>
+</html>
